@@ -32,6 +32,12 @@ namespace laptop_service.Models.MASTERS
 
         public decimal? Selling_Price { get; set; }
 
+        public decimal? Takeaway_Price { get; set; }
+
+        public decimal? Zomato_Price { get; set; }
+
+        public decimal? Swiggy_Price { get; set; }
+
         public string? Is_Taxable { get; set; }
 
         public string? Tax_Inclusive { get; set; }

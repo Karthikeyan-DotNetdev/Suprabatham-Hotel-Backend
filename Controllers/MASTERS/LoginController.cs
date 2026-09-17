@@ -86,6 +86,19 @@ namespace laptop_service.Controllers.MASTERS
 
                 try
                 {
+                    // Step 1: Auto-close any previously ACTIVE sessions for this employee
+                    // Power cut / browser crash aanaal varum Ghost Sessions-ai ithu thadukkum
+                    string closeOldSessionsQuery = $@"
+                        UPDATE dbo.User_Shift_Session_Log
+                        SET Shift_Status  = 'CLOSED',
+                            Logout_Time   = GETDATE(),
+                            Total_Minutes = DATEDIFF(MINUTE, Login_Time, GETDATE())
+                        WHERE User_Code    = '{EscapeSql(userNo)}'
+                          AND Shift_Status = 'ACTIVE';
+                    ";
+                    SQLService.ExecuteNonQuery(closeOldSessionsQuery);
+
+                    // Step 2: Insert new fresh session row
                     string sessionQuery = $@"
                         INSERT INTO dbo.User_Shift_Session_Log 
                             (User_Code, User_Name, Role_Name, Branch_Code, Device_Type, Login_Time, Shift_Status)
@@ -104,6 +117,7 @@ namespace laptop_service.Controllers.MASTERS
                 {
                     sessionId = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 }
+
 
                 return Ok(new
                 {
@@ -183,7 +197,7 @@ namespace laptop_service.Controllers.MASTERS
         }
 
         // =========================================================================
-        // 3. GET: /api/ShiftSummary (Real-Time Live Shift Statistics)
+        // 3. GET: /api/ShiftSummary (Real-Time Live Shift Statistics from Tender_Master)
         // =========================================================================
         [HttpGet]
         [Route("ShiftSummary")]
@@ -201,41 +215,96 @@ namespace laptop_service.Controllers.MASTERS
 
                 string fromTimeStr = shiftStart.ToString("yyyy-MM-dd HH:mm:ss");
 
-                // Query KOT Activity (Total KOTs, Total Items, Total KOT Value)
+                // 1. KOT Activity (Specific to the logged-in Captain / Waiter)
                 string kotQuery = $@"
                     SELECT 
                         COUNT(KM.KOT_Id) AS Total_KOTs,
                         ISNULL(SUM(KM.Total_Qty), 0) AS Total_Items_Qty,
-                        ISNULL(SUM(KM.Total_Amount), 0) AS Total_KOT_Amount,
-                        MIN(KM.Created_On) AS First_KOT_Time,
-                        MAX(KM.Created_On) AS Last_KOT_Time
+                        ISNULL(SUM(KM.Total_Amount), 0) AS Total_KOT_Amount
                     FROM dbo.M_KOT_Main KM
                     WHERE KM.Created_On >= '{fromTimeStr}'
-                      AND (KM.Created_By = '{safeUserCode}' OR KM.Waiter_Code = '{safeUserCode}' OR '{safeUserCode}' = '')
+                      AND (
+                          KM.Waiter_Code = '{safeUserCode}' 
+                          OR KM.Created_By = '{safeUserCode}'
+                          OR '{safeUserCode}' = ''
+                          OR '{safeUserCode}' = 'EMP00001'
+                      )
                       AND KM.Is_Active = 'A';
                 ";
 
                 DataTable kotDt = SQLService.GetDataTable(kotQuery);
 
-                // Query Billing Activity (Total Bills, Cash, UPI, Split, Card, Net Amount)
+                // 2. Total Bills & Net Amount
                 string billQuery = $@"
                     SELECT 
                         COUNT(B.Bill_Id) AS Total_Bills,
+                        ISNULL(SUM(B.Net_Amount), 0) AS Total_Billed_Amount,
                         ISNULL(SUM(CASE WHEN UPPER(TRIM(B.Payment_Mode)) = 'CASH' THEN B.Net_Amount ELSE 0 END), 0) AS Cash_Amount,
                         ISNULL(SUM(CASE WHEN UPPER(TRIM(B.Payment_Mode)) = 'UPI' THEN B.Net_Amount ELSE 0 END), 0) AS UPI_Amount,
                         ISNULL(SUM(CASE WHEN UPPER(TRIM(B.Payment_Mode)) = 'SPLIT' THEN B.Net_Amount ELSE 0 END), 0) AS Split_Amount,
-                        ISNULL(SUM(CASE WHEN UPPER(TRIM(B.Payment_Mode)) IN ('CARD','CREDIT CARD','DEBIT CARD') THEN B.Net_Amount ELSE 0 END), 0) AS Card_Amount,
-                        ISNULL(SUM(B.Net_Amount), 0) AS Total_Billed_Amount,
-                        MIN(B.Created_On) AS First_Bill_Time,
-                        MAX(B.Created_On) AS Last_Bill_Time
+                        ISNULL(SUM(CASE WHEN UPPER(TRIM(B.Payment_Mode)) IN ('CARD','CREDIT CARD','DEBIT CARD') THEN B.Net_Amount ELSE 0 END), 0) AS Card_Amount
                     FROM dbo.Bill_Main B
                     WHERE B.Created_On >= '{fromTimeStr}'
-                      AND (B.Created_By = '{safeUserCode}' OR '{safeUserCode}' = '')
                       AND B.Is_Active = 'A'
                       AND B.Bill_Status = 'BILLED';
                 ";
-
                 DataTable billDt = SQLService.GetDataTable(billQuery);
+
+                // 3. Dynamic Tender Breakdown from Tender_Master
+                string tenderQuery = $@"
+                    SELECT 
+                        TM.Tender_Code,
+                        TM.Tender_Name,
+                        ISNULL(SUM(B.Net_Amount), 0) AS Total_Amount,
+                        COUNT(B.Bill_Id) AS Bills_Count
+                    FROM dbo.Tender_Master TM
+                    LEFT JOIN dbo.Bill_Main B 
+                        ON UPPER(TRIM(B.Payment_Mode)) = UPPER(TRIM(TM.Tender_Name))
+                       AND B.Created_On >= '{fromTimeStr}'
+                       AND B.Is_Active = 'A'
+                       AND B.Bill_Status = 'BILLED'
+                    WHERE TM.Is_Active = 'A'
+                    GROUP BY TM.Tender_Code, TM.Tender_Name, TM.Display_Order
+                    ORDER BY ISNULL(TM.Display_Order, 999), TM.Tender_Name;
+                ";
+                DataTable tenderDt = SQLService.GetDataTable(tenderQuery);
+
+                var tenderList = new List<object>();
+
+                if (tenderDt != null && tenderDt.Rows.Count > 0)
+                {
+                    foreach (DataRow row in tenderDt.Rows)
+                    {
+                        tenderList.Add(new
+                        {
+                            Tender_Code = row["Tender_Code"].ToString(),
+                            Tender_Name = row["Tender_Name"].ToString(),
+                            Total_Amount = row["Total_Amount"] != DBNull.Value ? Convert.ToDecimal(row["Total_Amount"]) : 0,
+                            Bills_Count = row["Bills_Count"] != DBNull.Value ? Convert.ToInt32(row["Bills_Count"]) : 0
+                        });
+                    }
+                }
+
+                // Check for SPLIT bills if any
+                string splitQuery = $@"
+                    SELECT ISNULL(SUM(Net_Amount), 0) AS Split_Total, COUNT(Bill_Id) AS Split_Count
+                    FROM dbo.Bill_Main
+                    WHERE UPPER(TRIM(Payment_Mode)) = 'SPLIT'
+                      AND Created_On >= '{fromTimeStr}'
+                      AND Is_Active = 'A'
+                      AND Bill_Status = 'BILLED';
+                ";
+                DataTable splitDt = SQLService.GetDataTable(splitQuery);
+                if (splitDt != null && splitDt.Rows.Count > 0 && Convert.ToDecimal(splitDt.Rows[0]["Split_Total"]) > 0)
+                {
+                    tenderList.Add(new
+                    {
+                        Tender_Code = "SPLIT",
+                        Tender_Name = "SPLIT TENDER",
+                        Total_Amount = Convert.ToDecimal(splitDt.Rows[0]["Split_Total"]),
+                        Bills_Count = Convert.ToInt32(splitDt.Rows[0]["Split_Count"])
+                    });
+                }
 
                 int totalKots = (kotDt != null && kotDt.Rows.Count > 0) ? Convert.ToInt32(kotDt.Rows[0]["Total_KOTs"]) : 0;
                 int totalItems = (kotDt != null && kotDt.Rows.Count > 0) ? Convert.ToInt32(kotDt.Rows[0]["Total_Items_Qty"]) : 0;
@@ -269,19 +338,17 @@ namespace laptop_service.Controllers.MASTERS
                         UpiAmount = upiAmount,
                         SplitAmount = splitAmount,
                         CardAmount = cardAmount,
-                        TotalBilledAmount = totalBilled
+                        TotalBilledAmount = totalBilled,
+                        TenderBreakdown = tenderList
                     }
                 });
             }
             catch (Exception ex)
             {
-                return Ok(new
-                {
-                    status = false,
-                    message = ex.Message
-                });
+                return Ok(new { status = false, message = ex.Message });
             }
         }
+
 
         private static string EscapeSql(string? value)
         {

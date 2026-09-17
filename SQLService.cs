@@ -2,15 +2,15 @@
 using System.Data;
 using System.Data.SqlClient;
 //using System.Windows.Forms;
-
+ 
 namespace CommonServices
 {
     public class SQLService
     {
 
         
-        public static string connectionString = "Data Source=103.91.186.153,34999;Database=ADMIN_SUPRABATHAM;User Id=saadmin;Password=sV6x9#rXrq4wG$ZHYL;Encrypt=True;TrustServerCertificate=True";
-        //public static string connectionString = "Data Source=103.91.186.153,34999;Database=ADMIN_BITHOTEL;User Id=saadmin;Password=sV6x9#rXrq4wG$ZHYL;Encrypt=True;TrustServerCertificate=True";
+        //public static string connectionString = "Data Source=103.91.186.153,34999;Database=ADMIN_SUPRABATHAM;User Id=saadmin;Password=sV6x9#rXrq4wG$ZHYL;Encrypt=True;TrustServerCertificate=True";
+        public static string connectionString = "Data Source=103.91.186.153,34999;Database=ADMIN_BITHOTEL;User Id=saadmin;Password=sV6x9#rXrq4wG$ZHYL;Encrypt=True;TrustServerCertificate=True";
 
 
         #region MSSQL Server Methods ------------------------------------------------------------------------------

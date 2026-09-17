@@ -87,16 +87,20 @@ namespace laptop_service.Controllers.MASTERS
                     return Ok(jobject.ToString());
                 }
 
-                if ((product.Selling_Price ?? 0) < 0)
+                if ((product.Selling_Price ?? 0) < 0 ||
+    (product.Takeaway_Price ?? 0) < 0 ||
+    (product.Zomato_Price ?? 0) < 0 ||
+    (product.Swiggy_Price ?? 0) < 0)
                 {
                     jobject.Add("status", false);
                     jobject.Add(
                         "message",
-                        "Selling Price cannot be negative."
+                        "Selling Price or Channel Prices cannot be negative."
                     );
 
                     return Ok(jobject.ToString());
                 }
+
 
                 string safeProductName =
                     product.Product_Name.Replace("'", "''");
@@ -190,6 +194,9 @@ namespace laptop_service.Controllers.MASTERS
                     MRP_Price = product.MRP_Price ?? 0,
                     Cost_Price = product.Cost_Price ?? 0,
                     Selling_Price = product.Selling_Price ?? 0,
+                    Takeaway_Price = product.Takeaway_Price ?? (product.Selling_Price ?? 0),
+                    Zomato_Price = product.Zomato_Price ?? (product.Selling_Price ?? 0),
+                    Swiggy_Price = product.Swiggy_Price ?? (product.Selling_Price ?? 0),
 
                     Is_Taxable =
                         string.IsNullOrWhiteSpace(product.Is_Taxable)
@@ -343,8 +350,11 @@ namespace laptop_service.Controllers.MASTERS
                 }
 
                 if ((product.MRP_Price ?? 0) < 0 ||
-                    (product.Cost_Price ?? 0) < 0 ||
-                    (product.Selling_Price ?? 0) < 0)
+    (product.Cost_Price ?? 0) < 0 ||
+    (product.Selling_Price ?? 0) < 0 ||
+    (product.Takeaway_Price ?? 0) < 0 ||
+    (product.Zomato_Price ?? 0) < 0 ||
+    (product.Swiggy_Price ?? 0) < 0)
                 {
                     jobject.Add("status", false);
                     jobject.Add(
@@ -354,6 +364,8 @@ namespace laptop_service.Controllers.MASTERS
 
                     return Ok(jobject.ToString());
                 }
+
+
 
                 string safeProductCode =
                     Product_Code.Replace("'", "''");
@@ -453,6 +465,12 @@ namespace laptop_service.Controllers.MASTERS
                     MRP_Price = product.MRP_Price ?? 0,
                     Cost_Price = product.Cost_Price ?? 0,
                     Selling_Price = product.Selling_Price ?? 0,
+                    Takeaway_Price = product.Takeaway_Price ?? (product.Selling_Price ?? 0),
+                    Zomato_Price = product.Zomato_Price ?? (product.Selling_Price ?? 0),
+                    Swiggy_Price = product.Swiggy_Price ?? (product.Selling_Price ?? 0),
+
+                    
+
 
                     Is_Taxable =
                         string.IsNullOrWhiteSpace(product.Is_Taxable)
@@ -610,24 +628,27 @@ namespace laptop_service.Controllers.MASTERS
         }
 
         // =========================================================
-        // PRODUCT LIST
+        // PRODUCT LIST (WITH OPTIONAL BRANCH RATE OVERRIDE)
         // =========================================================
 
         [HttpGet]
         [Route("ProductList")]
-        public IActionResult ProductList()
+        public IActionResult ProductList([FromQuery] string? branchCode = null)
         {
             try
             {
                 ApiResponse response = new ApiResponse();
 
-                DataTable dt = SQLService.GetDataTable(
-                    "EXEC SP_ProductMasterList"
-                );
+                string safeBranchCode = (branchCode ?? "").Trim().Replace("'", "''");
+
+                string sql = string.IsNullOrWhiteSpace(safeBranchCode)
+                    ? "EXEC SP_ProductMasterList"
+                    : $"EXEC SP_ProductMasterList @BranchCode = '{safeBranchCode}'";
+
+                DataTable dt = SQLService.GetDataTable(sql);
 
                 response.status = true;
-                response.data =
-                    UtilityService.DataTableToJArray(dt);
+                response.data = UtilityService.DataTableToJArray(dt);
 
                 return new JsonResult(response);
             }
@@ -640,6 +661,7 @@ namespace laptop_service.Controllers.MASTERS
                 });
             }
         }
+
 
         // =========================================================
         // PRODUCT BY CODE

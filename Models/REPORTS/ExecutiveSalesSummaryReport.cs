@@ -1,24 +1,51 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace laptop_service.Models.REPORTS
 {
-    public class ExecutiveSalesSummaryReport
+    public class ExecutiveSalesSummaryResponse
     {
-        public DateTime Bill_Date { get; set; }
-        public decimal Total_Revenue { get; set; }
-        public int Total_Bills { get; set; }
-        public decimal Gross_Sales { get; set; }
-        public decimal Total_Discounts { get; set; }
-        public decimal Total_Tax { get; set; }
-        public decimal Average_Ticket_Value { get; set; }
-        public decimal Discount_Ratio { get; set; }
-        public decimal Cash_Amount { get; set; }
-        public decimal UPI_Amount { get; set; }
-        public decimal Card_Amount { get; set; }
-        public string Split_Amount { get; set; }
-        public decimal Other_Amount { get; set; }
-        public int Cancelled_Bills_Count { get; set; }
-        public decimal Cancelled_Bills_Amount { get; set; }
-        public decimal Cancelled_Ratio { get; set; }
+        public ExecutiveBillingSuccess Billing_Success { get; set; } = new();
+        public ExecutiveBillingCancel Billing_Cancel { get; set; } = new();
+        public List<ExecutiveOrderTypeSummary> Order_Types { get; set; } = new();
+        public List<ExecutivePaymentModeSummary> Payment_Modes { get; set; } = new();
+    }
+
+    public class ExecutiveBillingSuccess
+    {
+        public int Order_Count { get; set; }
+        public string Min_Invoice_No { get; set; } = "";
+        public string Max_Invoice_No { get; set; } = "";
+        public string Invoice_Nos_Range => string.IsNullOrEmpty(Min_Invoice_No) ? "-" : $"{Min_Invoice_No} - {Max_Invoice_No}";
+        public decimal Sub_Total { get; set; }
+        public decimal Discount { get; set; }
+        public decimal Delivery_Charge { get; set; }
+        public decimal Container_Charge { get; set; }
+        public decimal Service_Charge { get; set; }
+        public decimal Additional_Charge { get; set; }
+        public decimal Round_Off { get; set; }
+        public decimal Waived_Off { get; set; }
+        public decimal Grand_Total { get; set; }
+        public decimal Net_Sales { get; set; }
+    }
+
+    public class ExecutiveBillingCancel
+    {
+        public int Order_Count { get; set; }
+        public decimal Amount { get; set; }
+    }
+
+    public class ExecutiveOrderTypeSummary
+    {
+        public string Order_Type { get; set; } = "";
+        public int Count { get; set; }
+        public decimal Total_Amount { get; set; }
+    }
+
+    public class ExecutivePaymentModeSummary
+    {
+        public string Payment_Type { get; set; } = "";
+        public int Count { get; set; }
+        public decimal Total_Amount { get; set; }
     }
 }

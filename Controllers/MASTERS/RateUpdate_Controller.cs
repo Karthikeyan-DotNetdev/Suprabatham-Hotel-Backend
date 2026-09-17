@@ -54,7 +54,7 @@ namespace laptop_service.Controllers.MASTERS
                 if (string.IsNullOrWhiteSpace(request.UpdatedBy))
                     return Ok(new { status = false, message = "UpdatedBy is required." });
 
-                var validAreas = new[] { "ALL", "DINE_IN", "TAKEAWAY", "DELIVERY" };
+                var validAreas = new[] { "ALL", "DINE_IN", "TAKEAWAY", "DELIVERY", "ZOMATO", "SWIGGY" };
                 foreach (var r in request.Rates)
                 {
                     if (string.IsNullOrWhiteSpace(r.Branch_Code) || string.IsNullOrWhiteSpace(r.Product_Code))
