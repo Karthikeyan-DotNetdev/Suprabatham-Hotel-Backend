@@ -69,16 +69,27 @@ namespace laptop_service.Controllers.MASTERS
                 string branchCode = row["Branch_Code"].ToString() ?? "";
                 string deviceType = !string.IsNullOrWhiteSpace(model.DeviceType) ? model.DeviceType.Trim() : "DESKTOP_POS";
 
-                // 2. Define Role-Based Permissions Matrix
-                // CASHIER / ADMIN gets full access; CAPTAIN / WAITER gets ONLY /pos
-                bool isCaptainOrWaiter = (roleName == "CAPTAIN" || roleName == "WAITER" || roleName == "CAPTAIN / WAITER");
-                bool canAccessMasters = !isCaptainOrWaiter;
-                bool canAccessReports = !isCaptainOrWaiter;
-                bool canAccessSettings = !isCaptainOrWaiter;
-                string landingRoute = "/pos";
-                string[] allowedRoutes = isCaptainOrWaiter
-                    ? new string[] { "/pos" }
-                    : new string[] { "*" }; // "*" means all routes allowed
+
+                // Dynamic Role Matrix (ADMIN, MANAGER, CASHIER, WAITER)
+                bool isAdmin = (roleName == "ADMIN" || roleName == "OWNER" || roleName == "SUPER ADMIN");
+                bool isManager = (roleName == "MANAGER" || roleName == "SHIFT MANAGER");
+                bool isCashier = (roleName == "CASHIER");
+                bool isWaiter = (roleName == "WAITER" || roleName == "CAPTAIN" || roleName == "CAPTAIN / WAITER");
+
+                // Dynamic Permissions
+                bool canAccessMasters = isAdmin;
+                bool canAccessSettings = isAdmin;
+                bool canAccessReports = isAdmin || isManager;
+                bool canAccessDashboard = isAdmin || isManager;
+                bool canSettleBill = isAdmin || isManager || isCashier;
+
+                string landingRoute = isAdmin ? "/dashboard" : "/pos";
+                string[] allowedRoutes = isAdmin
+                    ? new string[] { "*" }
+                    : (isManager
+                        ? new string[] { "/pos", "/dashboard", "/reports" }
+                        : new string[] { "/pos" });
+
 
                 // 3. Create Shift Session Log in Database
                 long sessionId = 0;
